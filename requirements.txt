@@ -1,0 +1,6 @@
+crewai
+crewai[anthropic]
+anthropic
+python-dotenv
+playwright
+pytest
