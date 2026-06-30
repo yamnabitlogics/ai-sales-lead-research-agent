@@ -5,6 +5,7 @@ load_dotenv()
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 OPENAI_API_KEY    = os.getenv("OPENAI_API_KEY", "")
+SERPER_API_KEY = os.getenv("SERPER_API_KEY", "")
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
 LLM_MODEL    = os.getenv("LLM_MODEL", "gpt-4o-mini")

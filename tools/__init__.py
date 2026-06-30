@@ -1,2 +1,5 @@
 from tools.browser_tool import WebsiteScraperTool
 from tools.tech_detector import TechStackDetectorTool
+from tools.browser_tool import WebsiteScraperTool
+from tools.tech_detector import TechStackDetectorTool
+from tools.search_tool import web_search_tool

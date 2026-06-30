@@ -39,34 +39,34 @@ def build_tasks(company_name, website):
     context=[task_research],
 )
     task_decision_makers = Task(
-        description=(
-            f"Find the key decision makers at '{company_name}'. "
-            "Target: CEO, CTO, VP Engineering, Head of Product, or similar. "
-            "Use only publicly available sources. "
-            "For each person provide: name, title, and any public contact info."
-        ),
-        expected_output=(
-            "A Markdown table with columns: Name | Title | LinkedIn URL | Email (if public)."
-        ),
-        agent=decision_maker_agent,
-        context=[task_research],
-    )
-
+    description=(
+        f"Use the web search tool to find the actual current CEO, CTO, or "
+        f"VP Engineering at '{company_name}'. Search for terms like "
+        f"'{company_name} CEO' or '{company_name} CTO LinkedIn'. "
+        "Only report real names you find from search results — do not guess. "
+        "For each person provide: name, title, and any public contact info found."
+    ),
+    expected_output=(
+        "A Markdown table with columns: Name | Title | LinkedIn URL | Email (if public)."
+    ),
+    agent=decision_maker_agent,
+    context=[task_research],
+)
     task_opportunities = Task(
-        description=(
-            f"Analyse the research and technology stack for '{company_name}' "
-            "and identify the top 3 software/AI/automation opportunities. "
-            "For each opportunity: describe the pain point, the solution, "
-            "and the potential business impact."
-        ),
-        expected_output=(
-            "A numbered list of 3 opportunities, each with: Pain Point, "
-            "Proposed Solution, Business Impact."
-        ),
-        agent=opportunity_agent,
-        context=[task_research, task_technology],
-    )
-
+    description=(
+        f"Analyse the research and detected technology stack for '{company_name}'. "
+        "If helpful, search the web for recent news about the company's growth, "
+        "hiring, or challenges. Identify the top 3 software/AI/automation "
+        "opportunities. For each: describe the pain point, the solution, "
+        "and the potential business impact."
+    ),
+    expected_output=(
+        "A numbered list of 3 opportunities, each with: Pain Point, "
+        "Proposed Solution, Business Impact."
+    ),
+    agent=opportunity_agent,
+    context=[task_research, task_technology],
+)
     task_email = Task(
         description=(
             f"Write a personalised cold-outreach email targeting the most "

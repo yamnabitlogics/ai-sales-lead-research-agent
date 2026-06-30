@@ -6,6 +6,7 @@ from config.settings import (
 )
 from tools.browser_tool import WebsiteScraperTool
 from tools.tech_detector import TechStackDetectorTool
+from tools.search_tool import web_search_tool
 
 website_scraper = WebsiteScraperTool()
 tech_detector = TechStackDetectorTool()
@@ -84,10 +85,10 @@ decision_maker_agent = Agent(
         "the right person to contact at any company using LinkedIn, company "
         "websites, press releases, and conference speaker lists."
     ),
+    tools=[web_search_tool],
     allow_delegation=False,
     **_COMMON,
 )
-
 opportunity_agent = Agent(
     role="Business Opportunity Analyst",
     goal=(
@@ -100,6 +101,7 @@ opportunity_agent = Agent(
         "enterprise software sales. You understand where companies feel pain "
         "and how to frame a solution as a must-have."
     ),
+    tools=[web_search_tool],
     allow_delegation=False,
     **_COMMON,
 )
