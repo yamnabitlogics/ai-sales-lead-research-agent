@@ -4,7 +4,11 @@ from config.settings import (
     ANTHROPIC_API_KEY, OPENAI_API_KEY,
     VERBOSE, MAX_ITERATIONS,
 )
+from tools.browser_tool import WebsiteScraperTool
+from tools.tech_detector import TechStackDetectorTool
 
+website_scraper = WebsiteScraperTool()
+tech_detector = TechStackDetectorTool()
 
 def _build_llm():
     if LLM_PROVIDER == "anthropic":
@@ -49,10 +53,10 @@ research_agent = Agent(
         "consulting firm. You know how to extract the most relevant facts "
         "about a company from public sources quickly and accurately."
     ),
+    tools=[website_scraper],
     allow_delegation=False,
     **_COMMON,
 )
-
 technology_agent = Agent(
     role="Technology Stack Analyst",
     goal=(
@@ -64,6 +68,7 @@ technology_agent = Agent(
         "of job postings, open-source repositories, and website metadata to "
         "deduce the exact technology stack a company relies on."
     ),
+    tools=[tech_detector, website_scraper],
     allow_delegation=False,
     **_COMMON,
 )

@@ -13,34 +13,31 @@ from agents.definitions import (
 def build_tasks(company_name, website):
 
     task_research = Task(
-        description=(
-            f"Research the company '{company_name}' (website: {website}). "
-            "Find: industry, core products/services, company size, recent news, "
-            "and anything else useful for a sales pitch. "
-            "Return a structured summary with clear headings."
-        ),
-        expected_output=(
-            "A Markdown summary with sections: Overview, Products/Services, "
-            "Industry, Company Size, Recent News."
-        ),
-        agent=research_agent,
-    )
-
+    description=(
+        f"Use the Website Scraper tool to visit '{website}' and read its actual content. "
+        f"Research the company '{company_name}' based on what you find. "
+        "Find: industry, core products/services, company size, recent news. "
+        "Return a structured summary with clear headings."
+    ),
+    expected_output=(
+        "A Markdown summary with sections: Overview, Products/Services, "
+        "Industry, Company Size, Recent News."
+    ),
+    agent=research_agent,
+)
     task_technology = Task(
-        description=(
-            f"Based on the research about '{company_name}', identify their "
-            "technology stack. Look for clues in job postings, GitHub repos, "
-            "website source code, and press releases. "
-            "List frontend, backend, cloud/infra, databases, and third-party APIs."
-        ),
-        expected_output=(
-            "A JSON object with keys: frontend, backend, cloud, databases, "
-            "third_party_apis — each containing a list of technology names."
-        ),
-        agent=technology_agent,
-        context=[task_research],
-    )
-
+    description=(
+        f"Use the Technology Stack Detector tool on '{website}' to find real "
+        f"technology signals. Based on the actual detected technologies, "
+        "list frontend, backend, cloud/infra, databases, and third-party APIs."
+    ),
+    expected_output=(
+        "A JSON object with keys: frontend, backend, cloud, databases, "
+        "third_party_apis — each containing a list of technology names."
+    ),
+    agent=technology_agent,
+    context=[task_research],
+)
     task_decision_makers = Task(
         description=(
             f"Find the key decision makers at '{company_name}'. "
