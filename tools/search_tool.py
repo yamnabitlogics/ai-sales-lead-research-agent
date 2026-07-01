@@ -9,6 +9,7 @@ from crewai_tools import SerperDevTool
 from config.settings import SERPER_API_KEY
 import os
 
+
 os.environ["SERPER_API_KEY"] = SERPER_API_KEY
 
 web_search_tool = SerperDevTool()

@@ -8,6 +8,7 @@ from tools.browser_tool import WebsiteScraperTool
 from tools.tech_detector import TechStackDetectorTool
 from tools.search_tool import web_search_tool
 
+
 website_scraper = WebsiteScraperTool()
 tech_detector = TechStackDetectorTool()
 
@@ -77,8 +78,9 @@ technology_agent = Agent(
 decision_maker_agent = Agent(
     role="Decision Maker Research Specialist",
     goal=(
-        "Find the names, titles, and public contact details of key decision "
-        "makers at the target company using only publicly available information."
+        "Find the real, current names and titles of key decision makers "
+        "at the target company using live web search. Only report people "
+        "you actually find in search results — never guess or invent names."
     ),
     backstory=(
         "You are a sales intelligence professional who has mastered finding "
@@ -92,9 +94,9 @@ decision_maker_agent = Agent(
 opportunity_agent = Agent(
     role="Business Opportunity Analyst",
     goal=(
-        "Analyse the company research and technology stack to identify the "
-        "most compelling software, automation, or AI opportunities that a "
-        "solution provider could address."
+        "Using the real technology stack and company research already gathered, "
+        "identify the top 3 specific software or AI opportunities. "
+        "Search for recent news about the company if needed."
     ),
     backstory=(
         "You are a business development strategist with deep expertise in "

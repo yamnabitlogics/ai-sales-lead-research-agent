@@ -17,7 +17,10 @@ from agents.definitions import (
 )
 from agents.tasks import build_tasks
 from database.db_manager import init_db, save_company, save_report
-
+from database.db_manager import (
+    init_db, save_company, save_report,
+    save_decision_maker, save_opportunity
+)
 
 def _safe_filename(name):
     return re.sub(r"[^\w\-]", "_", name.strip().lower())
@@ -63,10 +66,12 @@ def run_pipeline(company_name, website=""):
 
     company_id = save_company(name=company_name, website=website)
 
+    save_decision_maker(company_id, name="See report", title="See report")
+    save_opportunity(company_id, description="See report for full analysis", priority="high")
+
     report_text = str(result)
     report_path = _save_markdown_report(company_name, report_text)
     save_report(company_id, report_path, fmt="markdown")
-
     print(f"\n✅  Pipeline complete!")
     print(f"   Report saved → {report_path}")
     print(f"   DB company_id → {company_id}\n")
