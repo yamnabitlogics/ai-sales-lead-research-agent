@@ -4,6 +4,7 @@ from pathlib import Path
 from datetime import datetime
 
 from crewai import Crew, Process
+from reports.pdf_generator import generate_pdf
 
 from config.settings import VERBOSE, REPORTS_DIR
 from agents.definitions import (
@@ -64,25 +65,33 @@ def run_pipeline(company_name, website=""):
 
     result = crew.kickoff()
 
+    # Save to database
     company_id = save_company(name=company_name, website=website)
-
     save_decision_maker(company_id, name="See report", title="See report")
     save_opportunity(company_id, description="See report for full analysis", priority="high")
 
     report_text = str(result)
+
+    # Save Markdown report
     report_path = _save_markdown_report(company_name, report_text)
     save_report(company_id, report_path, fmt="markdown")
+
+    # Generate PDF report
+    pdf_path = generate_pdf(company_name, report_text)
+    save_report(company_id, pdf_path, fmt="pdf")
+
     print(f"\n✅  Pipeline complete!")
-    print(f"   Report saved → {report_path}")
-    print(f"   DB company_id → {company_id}\n")
+    print(f"   Markdown → {report_path}")
+    print(f"   PDF      → {pdf_path}")
+    print(f"   DB id    → {company_id}\n")
 
     return {
-        "company_id": company_id,
+        "company_id":   company_id,
         "company_name": company_name,
-        "report_path": report_path,
-        "raw_output": report_text,
+        "report_path":  report_path,
+        "pdf_path":     pdf_path,
+        "raw_output":   report_text,
     }
-
 
 def _parse_args():
     parser = argparse.ArgumentParser(description="AI Sales Lead Research Agent")
