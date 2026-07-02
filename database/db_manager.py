@@ -128,5 +128,44 @@ def fetch_company(company_id):
     return dict(row) if row else {}
 
 
+def fetch_history(limit=50):
+    """Return past researched companies with PDF report links."""
+    conn = get_connection()
+    rows = conn.execute(
+        """
+        SELECT
+            c.id,
+            c.name,
+            c.website,
+            c.created_at,
+            (
+                SELECT file_path FROM reports
+                WHERE company_id = c.id AND format = 'pdf'
+                ORDER BY id DESC LIMIT 1
+            ) AS pdf_path
+        FROM companies c
+        ORDER BY c.created_at DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def get_pdf_report_path(company_id):
+    conn = get_connection()
+    row = conn.execute(
+        """
+        SELECT file_path FROM reports
+        WHERE company_id = ? AND format = 'pdf'
+        ORDER BY id DESC LIMIT 1
+        """,
+        (company_id,),
+    ).fetchone()
+    conn.close()
+    return row["file_path"] if row else None
+
+
 if __name__ == "__main__":
     init_db()

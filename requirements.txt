@@ -4,3 +4,6 @@ anthropic
 python-dotenv
 playwright
 pytest
+fpdf2
+flask
+crewai-tools

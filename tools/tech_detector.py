@@ -1,6 +1,6 @@
 """
 tools/tech_detector.py
-────────────────────────
+----------------------
 A custom CrewAI tool that inspects a website's HTML/headers to
 detect technologies in use (frameworks, analytics, CMS, etc.)
 """
@@ -34,7 +34,11 @@ class TechStackDetectorTool(BaseTool):
         "Input should be a full URL starting with http:// or https://"
     )
 
-    def _run(self, url: str) -> str:
+    def _run(self, url: str = "", **kwargs) -> str:
+        if not url:
+            url = kwargs.get("url", "")
+        if not url and kwargs:
+            url = str(next(iter(kwargs.values()), ""))
         if not url.startswith("http"):
             url = "https://" + url
 

@@ -6,6 +6,7 @@ formatted PDF report saved to reports/output/
 """
 
 from fpdf import FPDF
+from fpdf.enums import WrapMode, XPos, YPos
 from pathlib import Path
 from datetime import datetime
 from config.settings import REPORTS_DIR
@@ -14,10 +15,25 @@ import re
 
 class SalesReportPDF(FPDF):
 
+    def _content_width(self) -> float:
+        return self.epw
+
+    def _multi_line(self, text: str, h: float = 6, fill: bool = False) -> None:
+        """Render wrapped text and reset x to the left margin for the next line."""
+        self.multi_cell(
+            self._content_width(),
+            h,
+            text,
+            fill=fill,
+            wrapmode=WrapMode.CHAR,
+            new_x=XPos.LMARGIN,
+            new_y=YPos.NEXT,
+        )
+
     def header(self):
         self.set_font("Helvetica", "B", 10)
         self.set_text_color(31, 78, 121)
-        self.cell(0, 8, "AI Sales Lead Research Agent — Confidential Report", align="C")
+        self.cell(0, 8, "AI Sales Lead Research Agent - Confidential Report", align="C")
         self.ln(4)
         self.set_draw_color(31, 78, 121)
         self.set_line_width(0.5)
@@ -34,7 +50,7 @@ class SalesReportPDF(FPDF):
         self.set_font("Helvetica", "B", 24)
         self.set_text_color(31, 78, 121)
         self.ln(10)
-        self.cell(0, 12, company_name, align="C")
+        self.cell(0, 12, _sanitize_text(company_name), align="C", new_x=XPos.LMARGIN)
         self.ln(8)
         self.set_font("Helvetica", "", 13)
         self.set_text_color(80, 80, 80)
@@ -60,22 +76,32 @@ class SalesReportPDF(FPDF):
     def body_text(self, text: str):
         self.set_font("Helvetica", "", 10)
         self.set_text_color(60, 60, 60)
-        self.multi_cell(0, 6, text)
+        self._multi_line(text, h=6)
         self.ln(2)
 
     def bullet_item(self, text: str):
-        self.set_font("Helvetica", "", 10)
+        self.set_font("Helvetica", "", 9)
         self.set_text_color(60, 60, 60)
-        self.cell(8)
-        self.cell(5, 6, chr(149))
-        self.multi_cell(0, 6, text)
+        self._multi_line(f"  - {text}", h=5)
 
     def sub_heading(self, text: str):
         self.set_font("Helvetica", "B", 11)
         self.set_text_color(15, 52, 96)
         self.ln(3)
-        self.cell(0, 7, text)
+        self.cell(0, 7, text, new_x=XPos.LMARGIN)
         self.ln(5)
+
+
+def _sanitize_text(text: str) -> str:
+    """Replace characters outside Helvetica/latin-1 range."""
+    text = text.replace("\u2014", "-")
+    text = text.replace("\u2013", "-")
+    text = text.replace("\u2018", "'")
+    text = text.replace("\u2019", "'")
+    text = text.replace("\u201c", '"')
+    text = text.replace("\u201d", '"')
+    text = text.replace("\u2022", "-")
+    return text.encode("latin-1", errors="replace").decode("latin-1")
 
 
 def _clean_markdown(text: str) -> str:
@@ -86,7 +112,7 @@ def _clean_markdown(text: str) -> str:
     text = re.sub(r"`(.*?)`", r"\1", text)
     text = re.sub(r"\[(.*?)\]\(.*?\)", r"\1", text)
     text = re.sub(r"---+", "", text)
-    return text.strip()
+    return _sanitize_text(text.strip())
 
 
 def _parse_sections(raw_output: str) -> dict:
@@ -179,7 +205,7 @@ def generate_pdf(company_name: str, raw_output: str) -> str:
         if not clean:
             continue
         if "|" in line:
-            # table row — render as bullet
+            # table row - render as bullet
             cols = [c.strip() for c in line.split("|") if c.strip() and "---" not in c]
             if cols:
                 pdf.bullet_item("  |  ".join(cols))
@@ -212,9 +238,9 @@ def generate_pdf(company_name: str, raw_output: str) -> str:
             continue
         pdf.set_font("Helvetica", "", 10)
         pdf.set_text_color(40, 40, 40)
-        pdf.multi_cell(0, 6, clean, fill=True)
+        pdf._multi_line(clean, h=6, fill=True)
         pdf.ln(1)
 
     pdf.output(str(filepath))
-    print(f"PDF saved → {filepath}")
+    print(f"PDF saved -> {filepath}")
     return str(filepath)
