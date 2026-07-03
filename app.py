@@ -5,76 +5,41 @@ Flask web UI for the AI Sales Lead Research Agent.
 Run with: python app.py
 """
 
-import re
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, send_file, abort
 
-from database.db_manager import init_db, fetch_history, get_pdf_report_path
-from reports.pdf_generator import _parse_sections, _clean_markdown
+from database.db_manager import init_db, fetch_history, get_pdf_report_path, fetch_company_details
+from reports.section_parser import structure_results
+from utils.errors import PipelineError
+from utils.validation import normalize_website, validate_company_name
+from main import start_pipeline_job
+from pipeline.progress import progress_tracker
 
 app = Flask(__name__)
 
 
-def _parse_tech_stack(section_text: str) -> list[str]:
-    items = []
-    for line in section_text.split("\n"):
-        line = line.strip()
-        if not line:
-            continue
-        clean = _clean_markdown(line).strip()
-        if not clean or clean.lower().startswith("detected technologies"):
-            continue
-        if clean.startswith(("-", "*", "•")):
-            clean = clean.lstrip("-*• ").strip()
-        for part in re.split(r"[,;|]", clean):
-            part = part.strip()
-            if part and part.lower() not in {"none detected", "none"}:
-                items.append(part)
-    return list(dict.fromkeys(items))
+def _format_api_error(exc: Exception) -> tuple[dict, int]:
+    if isinstance(exc, PipelineError):
+        return {"error": exc.message, "code": exc.code}, 400 if exc.code == "validation_error" else 500
+    return {"error": str(exc), "code": "pipeline_error"}, 500
 
 
-def _parse_decision_makers(section_text: str) -> list[dict]:
-    makers = []
-    for line in section_text.split("\n"):
-        if "|" not in line or "---" in line:
-            continue
-        cols = [c.strip() for c in line.split("|") if c.strip()]
-        if len(cols) >= 2 and cols[0].lower() not in {"name", "full name"}:
-            makers.append({
-                "name": _clean_markdown(cols[0]),
-                "title": _clean_markdown(cols[1]),
-                "linkedin": _clean_markdown(cols[2]) if len(cols) > 2 else "",
-            })
-    if not makers:
-        for line in section_text.split("\n"):
-            clean = _clean_markdown(line).strip()
-            if clean and not clean.lower().startswith(("decision", "leadership", "key")):
-                makers.append({"name": clean, "title": "", "linkedin": ""})
-    return makers[:5]
-
-
-def _parse_opportunities(section_text: str) -> list[str]:
-    opportunities = []
-    for line in section_text.split("\n"):
-        clean = _clean_markdown(line).strip()
-        if not clean:
-            continue
-        if re.match(r"^\d+\.", clean):
-            opportunities.append(clean)
-        elif clean.startswith(("-", "*", "•")):
-            opportunities.append(clean.lstrip("-*• ").strip())
-    return opportunities[:3]
-
-
-def _structure_results(raw_output: str) -> dict:
-    sections = _parse_sections(raw_output)
+def _build_response(result: dict) -> dict:
     return {
-        "overview": _clean_markdown(sections["overview"]).strip(),
-        "tech_stack": _parse_tech_stack(sections["tech_stack"]),
-        "decision_makers": _parse_decision_makers(sections["decision_makers"]),
-        "opportunities": _parse_opportunities(sections["opportunities"]),
-        "email": _clean_markdown(sections["email"]).strip(),
+        "company_id": result["company_id"],
+        "company_name": result["company_name"],
+        "website": result.get("website", ""),
+        "report_date": result.get("report_date"),
+        "report_date_display": result.get("report_date_display"),
+        "pdf_url": f"/report/{result['company_id']}",
+        "overview": result.get("overview", ""),
+        "tech_stack": result.get("tech_stack", []),
+        "decision_makers": result.get("decision_makers", []),
+        "opportunities": result.get("opportunities", []),
+        "email": result.get("email", ""),
+        "email_subject": result.get("email_subject", ""),
+        "raw_output": result.get("raw_output", ""),
     }
 
 
@@ -86,32 +51,39 @@ def index():
 @app.route("/research", methods=["POST"])
 def research():
     data = request.get_json(silent=True) or {}
-    company = (data.get("company") or "").strip()
-    website = (data.get("website") or "").strip()
-
-    if not company:
-        return jsonify({"error": "Company name is required."}), 400
-
     try:
-        from main import run_pipeline
+        company = validate_company_name(data.get("company"))
+        website = normalize_website(data.get("website"))
+    except PipelineError as exc:
+        return jsonify({"error": exc.message, "code": exc.code}), 400
 
-        init_db()
-        result = run_pipeline(company_name=company, website=website)
-        structured = _structure_results(result["raw_output"])
-        return jsonify({
-            "company_id": result["company_id"],
-            "company_name": result["company_name"],
-            "website": website,
-            "pdf_url": f"/report/{result['company_id']}",
-            "overview": structured["overview"],
-            "tech_stack": structured["tech_stack"],
-            "decision_makers": structured["decision_makers"],
-            "opportunities": structured["opportunities"],
-            "email": structured["email"],
-            "raw_output": result["raw_output"],
-        })
-    except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+    init_db()
+    job_id = start_pipeline_job(company_name=company, website=website)
+    return jsonify({"job_id": job_id}), 202
+
+
+@app.route("/research/status/<job_id>")
+def research_status(job_id):
+    status = progress_tracker.get(job_id)
+    if not status:
+        return jsonify({"error": "Job not found.", "code": "not_found"}), 404
+    return jsonify(status)
+
+
+@app.route("/research/result/<job_id>")
+def research_result(job_id):
+    status = progress_tracker.get(job_id)
+    if not status:
+        return jsonify({"error": "Job not found.", "code": "not_found"}), 404
+    if status["status"] == "error":
+        return jsonify({"error": status["error"], "code": "pipeline_error"}), 500
+    if status["status"] != "complete":
+        return jsonify({"error": "Job still running.", "code": "in_progress"}), 202
+
+    result = progress_tracker.get_result(job_id)
+    if not result:
+        return jsonify({"error": "Result not available.", "code": "not_found"}), 404
+    return jsonify(_build_response(result))
 
 
 @app.route("/history")
@@ -128,6 +100,15 @@ def history():
         }
         for row in rows
     ])
+
+
+@app.route("/company/<int:company_id>")
+def company_details(company_id):
+    init_db()
+    details = fetch_company_details(company_id)
+    if not details:
+        abort(404, description="Company not found.")
+    return jsonify(details)
 
 
 @app.route("/report/<int:company_id>")

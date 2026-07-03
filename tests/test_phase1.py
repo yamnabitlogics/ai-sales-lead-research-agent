@@ -70,12 +70,12 @@ def test_all_agents_defined():
 
 def test_build_tasks_returns_six_tasks():
     from agents.tasks import build_tasks
-    tasks = build_tasks("TestCo", "https://testco.com")
+    tasks = build_tasks("TestCo", "https://testco.com", "July 03, 2026")
     assert len(tasks) == 6
 
 
 def test_tasks_have_descriptions():
     from agents.tasks import build_tasks
-    for task in build_tasks("TestCo", "https://testco.com"):
+    for task in build_tasks("TestCo", "https://testco.com", "July 03, 2026"):
         assert task.description.strip()
         assert task.expected_output.strip()

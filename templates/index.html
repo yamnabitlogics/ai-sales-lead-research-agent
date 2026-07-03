@@ -9,6 +9,7 @@
 <body>
   <header class="hero">
     <div class="container">
+      <div class="hero-badge">AI-Powered Sales Intelligence</div>
       <h1>AI Sales Lead Research Agent</h1>
       <p>
         Enter a company name and website to automatically research their business,
@@ -21,17 +22,17 @@
     <div class="container">
       <div id="errorBanner" class="error-banner"></div>
 
-      <!-- Input Form -->
       <section class="card">
         <h2>Research a Company</h2>
         <form id="researchForm" class="form-grid">
           <div>
-            <label for="company">Company Name</label>
+            <label for="company">Company Name <span class="required">*</span></label>
             <input type="text" id="company" name="company" placeholder="e.g. Shopify" required>
           </div>
           <div>
             <label for="website">Company Website</label>
             <input type="url" id="website" name="website" placeholder="e.g. https://shopify.com">
+            <small class="field-hint">Optional — improves accuracy of tech &amp; company research</small>
           </div>
           <button type="submit" class="btn-primary" id="submitBtn">
             Research This Company
@@ -39,35 +40,37 @@
         </form>
       </section>
 
-      <!-- Live Progress -->
       <section id="progressSection" class="card progress-section">
-        <h2>Research in Progress</h2>
+        <div class="progress-header">
+          <h2>Research in Progress</h2>
+          <span id="progressPercent" class="progress-pct">0%</span>
+        </div>
         <div class="progress-bar-wrap">
           <div id="progressBar" class="progress-bar"></div>
         </div>
-        <div class="steps" id="agentSteps">
-          <div class="step" data-step="0"><span class="step-icon">1</span> Research Agent - gathering company info</div>
-          <div class="step" data-step="1"><span class="step-icon">2</span> Technology Agent - detecting tech stack</div>
-          <div class="step" data-step="2"><span class="step-icon">3</span> Decision Maker Agent - finding contacts</div>
-          <div class="step" data-step="3"><span class="step-icon">4</span> Opportunity Agent - identifying sales angles</div>
-          <div class="step" data-step="4"><span class="step-icon">5</span> Email Agent - writing outreach</div>
-          <div class="step" data-step="5"><span class="step-icon">6</span> Report Agent - compiling final report</div>
-        </div>
+        <p id="progressMessage" class="progress-message">Initializing...</p>
+        <div class="steps" id="agentSteps"></div>
       </section>
 
-      <!-- Results -->
       <section id="resultsSection" class="card results-section">
-        <h2>Research Results</h2>
+        <div class="results-header">
+          <div>
+            <h2 id="resultsTitle">Research Results</h2>
+            <p id="resultsMeta" class="results-meta"></p>
+          </div>
+          <a id="headerPdfBtn" class="btn-secondary" href="#" download>Download PDF</a>
+        </div>
+
         <div class="tabs" id="resultTabs">
-          <button class="tab active" data-tab="overview">Company Overview</button>
-          <button class="tab" data-tab="tech">Technology Stack</button>
+          <button class="tab active" data-tab="overview">Overview</button>
+          <button class="tab" data-tab="tech">Tech Stack</button>
           <button class="tab" data-tab="makers">Decision Makers</button>
           <button class="tab" data-tab="opps">Opportunities</button>
           <button class="tab" data-tab="email">Outreach Email</button>
         </div>
 
         <div id="panel-overview" class="tab-panel active">
-          <p id="overviewText"></p>
+          <div id="overviewText" class="prose"></div>
         </div>
         <div id="panel-tech" class="tab-panel">
           <div id="techChips" class="chips"></div>
@@ -75,7 +78,7 @@
         <div id="panel-makers" class="tab-panel">
           <table class="data-table">
             <thead>
-              <tr><th>Name</th><th>Title</th><th>LinkedIn</th></tr>
+              <tr><th>Name</th><th>Title</th><th>LinkedIn</th><th>Email</th></tr>
             </thead>
             <tbody id="makersBody"></tbody>
           </table>
@@ -84,6 +87,7 @@
           <div id="oppsList"></div>
         </div>
         <div id="panel-email" class="tab-panel">
+          <div id="emailSubject" class="email-subject"></div>
           <textarea id="emailBox" class="email-box" readonly></textarea>
           <div class="copy-row">
             <button type="button" class="btn-secondary" id="copyEmailBtn">Copy Email</button>
@@ -92,9 +96,11 @@
         </div>
       </section>
 
-      <!-- History -->
       <section class="card">
-        <h2>Research History</h2>
+        <div class="history-header">
+          <h2>Research History</h2>
+          <input type="search" id="historySearch" class="history-search" placeholder="Search companies...">
+        </div>
         <div id="historyContent">
           <p class="empty-state">Loading history...</p>
         </div>
@@ -103,67 +109,163 @@
   </main>
 
   <footer>
-    <div class="container">AI Sales Lead Research Agent</div>
+    <div class="container">AI Sales Lead Research Agent &mdash; Confidential Sales Intelligence</div>
   </footer>
 
   <script>
-    const AGENT_STEPS = document.querySelectorAll("#agentSteps .step");
-    const STEP_INTERVAL_MS = 8000;
-    let progressTimer = null;
-    let currentStep = 0;
+    const AGENT_STEP_LABELS = [
+      { label: "Research Agent", detail: "Gathering company intelligence" },
+      { label: "Technology Agent", detail: "Detecting tech stack" },
+      { label: "Decision Maker Agent", detail: "Finding key contacts" },
+      { label: "Opportunity Agent", detail: "Identifying sales angles" },
+      { label: "Email Agent", detail: "Crafting outreach email" },
+      { label: "Report Agent", detail: "Compiling final report" },
+      { label: "Finalizing", detail: "Saving report and PDF" },
+    ];
+
+    let pollTimer = null;
+    let historyRows = [];
+
+    function escapeHtml(text) {
+      const d = document.createElement("div");
+      d.textContent = text || "";
+      return d.innerHTML;
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return "-";
+      const d = new Date(dateStr.replace(" ", "T") + (dateStr.includes("Z") ? "" : "Z"));
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString("en-US", {
+        year: "numeric", month: "short", day: "numeric",
+        hour: "2-digit", minute: "2-digit",
+      });
+    }
 
     function showError(msg) {
       const banner = document.getElementById("errorBanner");
       banner.textContent = msg;
       banner.classList.add("active");
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
     function hideError() {
       document.getElementById("errorBanner").classList.remove("active");
     }
 
+    function buildStepElements() {
+      const container = document.getElementById("agentSteps");
+      container.innerHTML = AGENT_STEP_LABELS.map((s, i) => `
+        <div class="step" data-step="${i}">
+          <span class="step-icon" id="stepIcon${i}">${i + 1}</span>
+          <div class="step-content">
+            <span class="step-label">${escapeHtml(s.label)}</span>
+            <span class="step-detail">${escapeHtml(s.detail)}</span>
+          </div>
+          <span class="step-status" id="stepStatus${i}"></span>
+        </div>
+      `).join("");
+    }
+
+    function updateProgressUI(data) {
+      const pct = data.percent || 0;
+      document.getElementById("progressBar").style.width = pct + "%";
+      document.getElementById("progressPercent").textContent = pct + "%";
+      document.getElementById("progressMessage").textContent = data.message || "";
+
+      (data.steps || []).forEach((step, i) => {
+        const el = document.querySelector(`.step[data-step="${i}"]`);
+        const icon = document.getElementById(`stepIcon${i}`);
+        const status = document.getElementById(`stepStatus${i}`);
+        if (!el) return;
+        el.classList.remove("active", "done", "error");
+        if (step.state === "active") {
+          el.classList.add("active");
+          icon.textContent = "…";
+          status.textContent = "In progress";
+        } else if (step.state === "done") {
+          el.classList.add("done");
+          icon.textContent = "✓";
+          status.textContent = "Complete";
+        } else if (step.state === "error") {
+          el.classList.add("error");
+          icon.textContent = "!";
+          status.textContent = "Failed";
+        } else {
+          icon.textContent = i + 1;
+          status.textContent = "";
+        }
+      });
+    }
+
     function startProgress() {
-      currentStep = 0;
       document.getElementById("progressSection").classList.add("active");
       document.getElementById("resultsSection").classList.remove("active");
-      updateProgressUI();
-
-      progressTimer = setInterval(() => {
-        if (currentStep < AGENT_STEPS.length - 1) {
-          currentStep++;
-          updateProgressUI();
-        }
-      }, STEP_INTERVAL_MS);
+      buildStepElements();
+      updateProgressUI({ percent: 0, message: "Starting research pipeline...", steps: [] });
     }
 
-    function stopProgress() {
-      if (progressTimer) {
-        clearInterval(progressTimer);
-        progressTimer = null;
+    function stopPolling() {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
       }
-      currentStep = AGENT_STEPS.length - 1;
-      updateProgressUI();
-      document.getElementById("progressBar").style.width = "100%";
-      AGENT_STEPS.forEach(s => {
-        s.classList.remove("active");
-        s.classList.add("done");
-      });
     }
 
-    function updateProgressUI() {
-      const pct = ((currentStep + 1) / AGENT_STEPS.length) * 100;
-      document.getElementById("progressBar").style.width = pct + "%";
+    async function pollJob(jobId) {
+      const statusRes = await fetch(`/research/status/${jobId}`);
+      const status = await statusRes.json();
+      if (!statusRes.ok) throw new Error(status.error || "Failed to get status.");
 
-      AGENT_STEPS.forEach((step, i) => {
-        step.classList.remove("active", "done");
-        if (i < currentStep) step.classList.add("done");
-        else if (i === currentStep) step.classList.add("active");
-      });
+      updateProgressUI(status);
+
+      if (status.status === "complete") {
+        stopPolling();
+        const resultRes = await fetch(`/research/result/${jobId}`);
+        const result = await resultRes.json();
+        if (!resultRes.ok) throw new Error(result.error || "Failed to get results.");
+        document.getElementById("progressSection").classList.remove("active");
+        renderResults(result);
+        loadHistory();
+        return true;
+      }
+
+      if (status.status === "error") {
+        stopPolling();
+        document.getElementById("progressSection").classList.remove("active");
+        throw new Error(status.error || "Research failed.");
+      }
+
+      return false;
+    }
+
+    function renderOverview(text) {
+      const el = document.getElementById("overviewText");
+      if (!text) {
+        el.innerHTML = '<p class="empty-state">No overview available.</p>';
+        return;
+      }
+      const lines = text.split("\n").filter(l => l.trim());
+      el.innerHTML = lines.map(line => {
+        const clean = line.replace(/^#+\s*/, "").replace(/\*\*/g, "");
+        if (line.startsWith("#") || (clean.length < 50 && /^[A-Z]/.test(clean))) {
+          return `<h3 class="prose-heading">${escapeHtml(clean)}</h3>`;
+        }
+        if (line.trim().startsWith("-") || line.trim().startsWith("•")) {
+          return `<p class="prose-bullet">${escapeHtml(clean.replace(/^[-•]\s*/, ""))}</p>`;
+        }
+        return `<p>${escapeHtml(clean)}</p>`;
+      }).join("");
     }
 
     function renderResults(data) {
-      document.getElementById("overviewText").textContent =
-        data.overview || "No overview available.";
+      document.getElementById("resultsTitle").textContent = data.company_name || "Research Results";
+      const meta = [];
+      if (data.report_date_display) meta.push(`Report date: ${data.report_date_display}`);
+      if (data.website) meta.push(data.website);
+      document.getElementById("resultsMeta").textContent = meta.join("  ·  ");
+
+      renderOverview(data.overview);
 
       const chips = document.getElementById("techChips");
       chips.innerHTML = "";
@@ -174,7 +276,7 @@
         chips.appendChild(span);
       });
       if (!data.tech_stack || !data.tech_stack.length) {
-        chips.innerHTML = '<span class="chip">No technologies detected</span>';
+        chips.innerHTML = '<span class="chip chip-muted">No technologies detected</span>';
       }
 
       const tbody = document.getElementById("makersBody");
@@ -182,13 +284,17 @@
       (data.decision_makers || []).forEach(m => {
         const tr = document.createElement("tr");
         const link = m.linkedin
-          ? `<a href="${m.linkedin.startsWith("http") ? m.linkedin : "https://" + m.linkedin}" target="_blank" rel="noopener">View</a>`
-          : "-";
-        tr.innerHTML = `<td>${escapeHtml(m.name)}</td><td>${escapeHtml(m.title || "-")}</td><td>${link}</td>`;
+          ? `<a href="${m.linkedin.startsWith("http") ? m.linkedin : "https://" + m.linkedin}" target="_blank" rel="noopener">Profile</a>`
+          : '<span class="muted">-</span>';
+        tr.innerHTML = `
+          <td><strong>${escapeHtml(m.name)}</strong></td>
+          <td>${escapeHtml(m.title || "-")}</td>
+          <td>${link}</td>
+          <td>${m.email ? escapeHtml(m.email) : '<span class="muted">-</span>'}</td>`;
         tbody.appendChild(tr);
       });
       if (!data.decision_makers || !data.decision_makers.length) {
-        tbody.innerHTML = '<tr><td colspan="3">No decision makers found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No decision makers found.</td></tr>';
       }
 
       const oppsList = document.getElementById("oppsList");
@@ -196,57 +302,96 @@
       (data.opportunities || []).forEach((opp, i) => {
         const div = document.createElement("div");
         div.className = "opp-card";
-        div.innerHTML = `<div class="num">Opportunity ${i + 1}</div><p>${escapeHtml(opp)}</p>`;
+        const title = opp.title || `Opportunity ${i + 1}`;
+        let body = "";
+        if (opp.pain_point) body += `<div class="opp-field"><span class="opp-label">Pain Point</span><p>${escapeHtml(opp.pain_point)}</p></div>`;
+        if (opp.solution) body += `<div class="opp-field"><span class="opp-label">Solution</span><p>${escapeHtml(opp.solution)}</p></div>`;
+        if (opp.impact) body += `<div class="opp-field"><span class="opp-label">Impact</span><p>${escapeHtml(opp.impact)}</p></div>`;
+        if (!body && opp.summary) body = `<p>${escapeHtml(opp.summary)}</p>`;
+        div.innerHTML = `<div class="opp-header"><span class="num">${i + 1}</span><span class="opp-title">${escapeHtml(title)}</span></div>${body}`;
         oppsList.appendChild(div);
       });
       if (!data.opportunities || !data.opportunities.length) {
         oppsList.innerHTML = '<p class="empty-state">No opportunities identified.</p>';
       }
 
+      document.getElementById("emailSubject").textContent =
+        data.email_subject ? `Subject: ${data.email_subject}` : "";
       document.getElementById("emailBox").value = data.email || "";
-      document.getElementById("downloadPdfBtn").href = data.pdf_url || "#";
+      const pdfUrl = data.pdf_url || "#";
+      document.getElementById("downloadPdfBtn").href = pdfUrl;
+      document.getElementById("headerPdfBtn").href = pdfUrl;
 
       document.getElementById("resultsSection").classList.add("active");
+      document.getElementById("resultsSection").scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
-    function escapeHtml(text) {
-      const d = document.createElement("div");
-      d.textContent = text;
-      return d.innerHTML;
+    function renderHistoryTable(rows) {
+      const container = document.getElementById("historyContent");
+      if (!rows.length) {
+        container.innerHTML = '<p class="empty-state">No companies researched yet.</p>';
+        return;
+      }
+      let html = `<table class="history-table"><thead><tr>
+        <th>Company</th><th>Date</th><th>Actions</th>
+      </tr></thead><tbody>`;
+      rows.forEach(row => {
+        const pdfBtn = row.report_url
+          ? `<a href="${row.report_url}" class="btn-secondary btn-sm">PDF</a>`
+          : "";
+        html += `<tr>
+          <td>
+            <strong>${escapeHtml(row.name)}</strong>
+            ${row.website ? `<br><small class="muted">${escapeHtml(row.website)}</small>` : ""}
+          </td>
+          <td><span class="date-cell">${escapeHtml(formatDate(row.date))}</span></td>
+          <td class="action-cell">
+            <button class="btn-secondary btn-sm" onclick="loadPastResult(${row.id})">View</button>
+            ${pdfBtn}
+          </td>
+        </tr>`;
+      });
+      html += "</tbody></table>";
+      container.innerHTML = html;
     }
 
     async function loadHistory() {
       const container = document.getElementById("historyContent");
       try {
         const res = await fetch("/history");
-        const rows = await res.json();
-        if (!rows.length) {
-          container.innerHTML = '<p class="empty-state">No companies researched yet.</p>';
-          return;
-        }
-        let html = `<table class="history-table"><thead><tr>
-          <th>Company</th><th>Date</th><th>Report</th>
-        </tr></thead><tbody>`;
-        rows.forEach(row => {
-          const report = row.report_url
-            ? `<a href="${row.report_url}" class="btn-secondary" style="padding:0.35rem 0.75rem;font-size:0.8rem;">Download PDF</a>`
-            : "-";
-          html += `<tr>
-            <td><strong>${escapeHtml(row.name)}</strong><br><small>${escapeHtml(row.website || "")}</small></td>
-            <td>${escapeHtml(row.date || "")}</td>
-            <td>${report}</td>
-          </tr>`;
-        });
-        html += "</tbody></table>";
-        container.innerHTML = html;
+        if (!res.ok) throw new Error("Failed to load history");
+        historyRows = await res.json();
+        renderHistoryTable(historyRows);
       } catch {
         container.innerHTML = '<p class="empty-state">Could not load history.</p>';
       }
     }
 
+    async function loadPastResult(companyId) {
+      hideError();
+      try {
+        const res = await fetch(`/company/${companyId}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Could not load results.");
+        renderResults(data);
+      } catch (err) {
+        showError(err.message);
+      }
+    }
+    window.loadPastResult = loadPastResult;
+
+    document.getElementById("historySearch").addEventListener("input", (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      const filtered = historyRows.filter(r =>
+        r.name.toLowerCase().includes(q) || (r.website || "").toLowerCase().includes(q)
+      );
+      renderHistoryTable(filtered);
+    });
+
     document.getElementById("researchForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       hideError();
+      stopPolling();
 
       const company = document.getElementById("company").value.trim();
       const website = document.getElementById("website").value.trim();
@@ -265,11 +410,18 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Research failed.");
 
-        stopProgress();
-        renderResults(data);
-        loadHistory();
+        const jobId = data.job_id;
+        pollTimer = setInterval(async () => {
+          try {
+            await pollJob(jobId);
+          } catch (err) {
+            stopPolling();
+            document.getElementById("progressSection").classList.remove("active");
+            showError(err.message);
+          }
+        }, 1500);
+        await pollJob(jobId);
       } catch (err) {
-        stopProgress();
         document.getElementById("progressSection").classList.remove("active");
         showError(err.message);
       } finally {
@@ -287,15 +439,17 @@
     });
 
     document.getElementById("copyEmailBtn").addEventListener("click", () => {
-      const box = document.getElementById("emailBox");
-      box.select();
-      navigator.clipboard.writeText(box.value).then(() => {
+      const subject = document.getElementById("emailSubject").textContent;
+      const body = document.getElementById("emailBox").value;
+      const full = subject ? subject + "\n\n" + body : body;
+      navigator.clipboard.writeText(full).then(() => {
         const btn = document.getElementById("copyEmailBtn");
         btn.textContent = "Copied!";
         setTimeout(() => { btn.textContent = "Copy Email"; }, 2000);
       });
     });
 
+    buildStepElements();
     loadHistory();
   </script>
 </body>

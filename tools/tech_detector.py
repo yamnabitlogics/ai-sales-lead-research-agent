@@ -7,8 +7,13 @@ detect technologies in use (frameworks, analytics, CMS, etc.)
 
 from crewai.tools import BaseTool
 from playwright.sync_api import sync_playwright
+
 from config.settings import HEADLESS_BROWSER, BROWSER_TIMEOUT
-import re
+from config.logger import get_logger
+from utils.validation import normalize_website
+from utils.errors import ValidationError
+
+logger = get_logger("tech_detector")
 
 
 KNOWN_SIGNATURES = {
@@ -39,19 +44,31 @@ class TechStackDetectorTool(BaseTool):
             url = kwargs.get("url", "")
         if not url and kwargs:
             url = str(next(iter(kwargs.values()), ""))
-        if not url.startswith("http"):
-            url = "https://" + url
+
+        url = url.strip()
+        if not url:
+            return "ERROR: No website URL provided for technology detection."
+
+        try:
+            url = normalize_website(url)
+        except ValidationError as exc:
+            return f"ERROR: Invalid website URL — {exc.message}"
 
         try:
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=HEADLESS_BROWSER)
                 page = browser.new_page()
-                response = page.goto(url, timeout=BROWSER_TIMEOUT)
-                page.wait_for_load_state("networkidle", timeout=BROWSER_TIMEOUT)
+                response = page.goto(url, timeout=BROWSER_TIMEOUT, wait_until="domcontentloaded")
+                if response and response.status >= 400:
+                    browser.close()
+                    return f"ERROR: Website returned HTTP {response.status} for {url}."
+                try:
+                    page.wait_for_load_state("networkidle", timeout=BROWSER_TIMEOUT)
+                except Exception:
+                    pass
 
                 html = page.content()
                 headers = response.headers if response else {}
-
                 browser.close()
 
             detected = []
@@ -62,11 +79,16 @@ class TechStackDetectorTool(BaseTool):
                         break
 
             server_header = headers.get("server", "unknown")
-
-            result = f"Server header: {server_header}\n"
-            result += f"Detected technologies: {', '.join(detected) if detected else 'None detected'}"
-
+            result = f"URL: {url}\nServer header: {server_header}\n"
+            if detected:
+                result += f"Detected technologies: {', '.join(detected)}"
+            else:
+                result += (
+                    "Detected technologies: None from HTML signatures. "
+                    "Inspect page content and headers for additional clues."
+                )
             return result
 
         except Exception as e:
-            return f"Error detecting tech stack for {url}: {str(e)}"
+            logger.warning(f"Tech detection failed for {url}: {e}")
+            return f"ERROR detecting tech stack for {url}: {str(e)}"

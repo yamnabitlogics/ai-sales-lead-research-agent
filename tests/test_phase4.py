@@ -56,10 +56,12 @@ def test_pdf_generator_handles_full_width_lines(tmp_path, monkeypatch):
     monkeypatch.setattr("config.settings.REPORTS_DIR", str(tmp_path))
 
     import importlib
+    from config.dates import ReportTimestamp
     import reports.pdf_generator as pg
     importlib.reload(pg)
 
-    pdf = pg.SalesReportPDF()
+    report_ts = ReportTimestamp()
+    pdf = pg.SalesReportPDF(report_ts, "WidthTest")
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.set_margins(left=12, top=14, right=12)
     pdf.add_page()
