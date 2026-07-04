@@ -614,6 +614,26 @@ input:focus {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.925rem;
+  table-layout: fixed;
+}
+
+.history-table th:nth-child(1),
+.history-table td:nth-child(1) {
+  width: 46%;
+}
+
+.history-table th:nth-child(2),
+.history-table td:nth-child(2) {
+  width: 24%;
+}
+
+.history-table th:nth-child(3),
+.history-table td:nth-child(3) {
+  width: 30%;
+}
+
+.history-table td {
+  vertical-align: middle;
 }
 
 .history-table th,
